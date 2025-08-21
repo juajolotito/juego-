@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Respira y Juega</title>
+<title>Respira y Relájate</title>
 <style>
   body {
     margin: 0;
-    background: #87CEEB;
-    overflow: hidden;
+    background: linear-gradient(180deg, #87CEEB, #4ec0ca);
     font-family: Arial, sans-serif;
-    text-align: center;
+    overflow: hidden;
+    color: #fff;
   }
 
-  canvas {
+  #gameCanvas {
     display: block;
     margin: auto;
     background: #4ec0ca;
@@ -31,46 +31,91 @@
     transition: all 4s ease-in-out;
   }
 
-  #score {
+  #infoPanel {
     position: fixed;
     top: 10px;
     left: 10px;
-    font-size: 24px;
-    color: #fff;
+    background: rgba(0,0,0,0.4);
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 18px;
+    text-align: left;
+  }
+
+  #instructions {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(0,0,0,0.4);
+    padding: 10px;
+    border-radius: 10px;
+    font-size: 16px;
+    width: 250px;
+    line-height: 1.4;
   }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+<!-- Indicadores -->
 <div id="guide"></div>
-<div id="score">Puntos: 0</div>
+<div id="infoPanel">
+  🌬️ Espiraciones: <span id="exhales">0</span><br>
+  ⏱️ Tiempo: <span id="time">0:00</span><br>
+  🎯 Precisión: <span id="accuracy">100%</span><br>
+  💓 Ritmo: <span id="rhythm">--</span>
+</div>
+
+<div id="instructions">
+  <strong>Respira y Relájate</strong><br>
+  Sigue el círculo de respiración:<br>
+  ✅ Inhala cuando crece (4s)<br>
+  ✅ Mantén cuando está grande (4s)<br>
+  ✅ Exhala cuando se encoge (6s)<br>
+  💆‍♀️ Técnica 4-4-6 para relajación
+</div>
 
 <script>
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Personaje
-let bird = { x: 50, y: 300, size: 30, velocity: 0, gravity: 0.5, lift: -0.8 };
+let bird = { x: 80, y: 300, size: 20, velocity: 0, gravity: 0.6, lift: -1.2 };
+let inhaling = false;
+let lastPressTime = null;
+let score = 0;
+let obstacles = [];
+let frameCount = 0;
+
+// Métricas
+let exhalesCount = 0;
+let startTime = Date.now();
+let accuracy = 100;
+let rhythm = "--";
 
 // Guía visual
 const guide = document.getElementById("guide");
-
-// Puntuación
-let score = 0;
-let lastPressTime = null;
-let inhaling = false;
-
-// Ciclo de inhalar/exhalar (4s in, 6s out)
 function breathingGuide() {
+  // Inhala (4s)
+  guide.style.transition = "all 4s ease-in-out";
   guide.style.width = "200px";
   guide.style.height = "200px";
+  document.getElementById("rhythm").innerText = "Inhala";
 
   setTimeout(() => {
-    guide.style.width = "100px";
-    guide.style.height = "100px";
+    // Mantén (4s)
+    document.getElementById("rhythm").innerText = "Mantén";
   }, 4000);
 
-  setTimeout(breathingGuide, 10000); // repetir ciclo cada 10s
+  setTimeout(() => {
+    // Exhala (6s)
+    guide.style.transition = "all 6s ease-in-out";
+    guide.style.width = "100px";
+    guide.style.height = "100px";
+    document.getElementById("rhythm").innerText = "Exhala";
+  }, 8000);
+
+  setTimeout(breathingGuide, 14000); // ciclo completo 14s
 }
 breathingGuide();
 
@@ -87,22 +132,52 @@ document.addEventListener("keyup", (e) => {
     inhaling = false;
     let duration = (Date.now() - lastPressTime) / 1000;
 
-    // Verificar si estuvo cerca de 4s (inhalación ideal)
+    // Calcular precisión según técnica 4-4-6
     if (duration >= 3 && duration <= 5) {
       score += 10;
     } else {
       score -= 5;
     }
-    document.getElementById("score").innerText = `Puntos: ${score}`;
+    exhalesCount++;
+    document.getElementById("exhales").innerText = exhalesCount;
   }
 });
 
+// Obstáculos
+function createObstacle() {
+  const height = Math.floor(Math.random() * 200) + 100;
+  const gap = 150;
+  obstacles.push({ x: canvas.width, y: height, width: 50, gap: gap });
+}
+
+function drawObstacles() {
+  ctx.fillStyle = "#2E8B57";
+  obstacles.forEach((obs) => {
+    ctx.fillRect(obs.x, 0, obs.width, obs.y); // parte superior
+    ctx.fillRect(obs.x, obs.y + obs.gap, obs.width, canvas.height); // parte inferior
+  });
+}
+
+function updateObstacles() {
+  obstacles.forEach((obs) => {
+    obs.x -= 2; // velocidad
+  });
+  obstacles = obstacles.filter((obs) => obs.x + obs.width > 0);
+  if (frameCount % 150 === 0) createObstacle();
+}
+
+// Actualizar tiempo y precisión
+function updateMetrics() {
+  let elapsed = Math.floor((Date.now() - startTime) / 1000);
+  let mins = Math.floor(elapsed / 60);
+  let secs = elapsed % 60;
+  document.getElementById("time").innerText = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  document.getElementById("accuracy").innerText = accuracy + "%";
+}
+
 // Juego
 function update() {
-  // Física del personaje
-  if (inhaling) {
-    bird.velocity += bird.lift;
-  }
+  if (inhaling) bird.velocity += bird.lift;
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
 
@@ -114,24 +189,29 @@ function update() {
     bird.y = 0;
     bird.velocity = 0;
   }
+
+  updateObstacles();
+  updateMetrics();
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Dibujar personaje
+  // Bird
   ctx.fillStyle = "#FFD700";
   ctx.beginPath();
   ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
   ctx.fill();
+
+  drawObstacles();
 }
 
 function gameLoop() {
+  frameCount++;
   update();
   draw();
   requestAnimationFrame(gameLoop);
 }
-
 gameLoop();
 </script>
 </body>
