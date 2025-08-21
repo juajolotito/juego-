@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Respira y Juega</title>
+<style>
+  body {
+    margin: 0;
+    background: #87CEEB;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    text-align: center;
+  }
+
+  canvas {
+    display: block;
+    margin: auto;
+    background: #4ec0ca;
+  }
+
+  #guide {
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.5);
+    transition: all 4s ease-in-out;
+  }
+
+  #score {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    font-size: 24px;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="guide"></div>
+<div id="score">Puntos: 0</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+// Personaje
+let bird = { x: 50, y: 300, size: 30, velocity: 0, gravity: 0.5, lift: -0.8 };
+
+// Guía visual
+const guide = document.getElementById("guide");
+
+// Puntuación
+let score = 0;
+let lastPressTime = null;
+let inhaling = false;
+
+// Ciclo de inhalar/exhalar (4s in, 6s out)
+function breathingGuide() {
+  guide.style.width = "200px";
+  guide.style.height = "200px";
+
+  setTimeout(() => {
+    guide.style.width = "100px";
+    guide.style.height = "100px";
+  }, 4000);
+
+  setTimeout(breathingGuide, 10000); // repetir ciclo cada 10s
+}
+breathingGuide();
+
+// Controles
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space" && !inhaling) {
+    inhaling = true;
+    lastPressTime = Date.now();
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  if (e.code === "Space" && inhaling) {
+    inhaling = false;
+    let duration = (Date.now() - lastPressTime) / 1000;
+
+    // Verificar si estuvo cerca de 4s (inhalación ideal)
+    if (duration >= 3 && duration <= 5) {
+      score += 10;
+    } else {
+      score -= 5;
+    }
+    document.getElementById("score").innerText = `Puntos: ${score}`;
+  }
+});
+
+// Juego
+function update() {
+  // Física del personaje
+  if (inhaling) {
+    bird.velocity += bird.lift;
+  }
+  bird.velocity += bird.gravity;
+  bird.y += bird.velocity;
+
+  if (bird.y > canvas.height - bird.size) {
+    bird.y = canvas.height - bird.size;
+    bird.velocity = 0;
+  }
+  if (bird.y < 0) {
+    bird.y = 0;
+    bird.velocity = 0;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Dibujar personaje
+  ctx.fillStyle = "#FFD700";
+  ctx.beginPath();
+  ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+</body>
+</html>
