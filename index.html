@@ -53,6 +53,46 @@
     width: 250px;
     line-height: 1.4;
   }
+
+  #pauseBtn {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    padding: 10px 20px;
+    background: #FFD700;
+    color: #000;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  #gameOver {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    font-size: 36px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+
+  #restartBtn {
+    padding: 10px 20px;
+    background: #FFD700;
+    color: #000;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    margin-top: 20px;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -63,8 +103,8 @@
 <div id="infoPanel">
   🌬️ Espiraciones: <span id="exhales">0</span><br>
   ⏱️ Tiempo: <span id="time">0:00</span><br>
-  🎯 Precisión: <span id="accuracy">100%</span><br>
-  💓 Ritmo: <span id="rhythm">--</span>
+  💓 Ritmo: <span id="rhythm">--</span><br>
+  🏆 Puntos: <span id="score">0</span>
 </div>
 
 <div id="instructions">
@@ -74,6 +114,13 @@
   ✅ Mantén cuando está grande (4s)<br>
   ✅ Exhala cuando se encoge (6s)<br>
   💆‍♀️ Técnica 4-4-6 para relajación
+</div>
+
+<button id="pauseBtn">⏸ Pausa</button>
+
+<div id="gameOver">
+  ❌ ¡Perdiste!<br>
+  <button id="restartBtn">🔄 Reiniciar</button>
 </div>
 
 <script>
@@ -86,34 +133,53 @@ let lastPressTime = null;
 let score = 0;
 let obstacles = [];
 let frameCount = 0;
+let paused = false;
+let failCount = 0;
 
 // Métricas
 let exhalesCount = 0;
 let startTime = Date.now();
-let accuracy = 100;
 let rhythm = "--";
+
+// Botones
+const pauseBtn = document.getElementById("pauseBtn");
+const gameOverDiv = document.getElementById("gameOver");
+const restartBtn = document.getElementById("restartBtn");
+
+// Pausa
+pauseBtn.addEventListener("click", () => {
+  paused = !paused;
+  pauseBtn.innerText = paused ? "▶ Reanudar" : "⏸ Pausa";
+});
+
+// Reiniciar
+restartBtn.addEventListener("click", () => {
+  location.reload();
+});
 
 // Guía visual
 const guide = document.getElementById("guide");
 function breathingGuide() {
-  // Inhala (4s)
-  guide.style.transition = "all 4s ease-in-out";
-  guide.style.width = "200px";
-  guide.style.height = "200px";
-  document.getElementById("rhythm").innerText = "Inhala";
+  if (!paused) {
+    // Inhala (4s)
+    guide.style.transition = "all 4s ease-in-out";
+    guide.style.width = "200px";
+    guide.style.height = "200px";
+    rhythm = "Inhala";
 
-  setTimeout(() => {
-    // Mantén (4s)
-    document.getElementById("rhythm").innerText = "Mantén";
-  }, 4000);
+    setTimeout(() => {
+      // Mantén (4s)
+      rhythm = "Mantén";
+    }, 4000);
 
-  setTimeout(() => {
-    // Exhala (6s)
-    guide.style.transition = "all 6s ease-in-out";
-    guide.style.width = "100px";
-    guide.style.height = "100px";
-    document.getElementById("rhythm").innerText = "Exhala";
-  }, 8000);
+    setTimeout(() => {
+      // Exhala (6s)
+      guide.style.transition = "all 6s ease-in-out";
+      guide.style.width = "100px";
+      guide.style.height = "100px";
+      rhythm = "Exhala";
+    }, 8000);
+  }
 
   setTimeout(breathingGuide, 14000); // ciclo completo 14s
 }
@@ -121,23 +187,32 @@ breathingGuide();
 
 // Controles
 document.addEventListener("keydown", (e) => {
-  if (e.code === "Space" && !inhaling) {
+  if (e.code === "Space" && !inhaling && !paused) {
     inhaling = true;
     lastPressTime = Date.now();
   }
 });
 
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" && inhaling) {
+  if (e.code === "Space" && inhaling && !paused) {
     inhaling = false;
     let duration = (Date.now() - lastPressTime) / 1000;
 
-    // Calcular precisión según técnica 4-4-6
-    if (duration >= 3 && duration <= 5) {
+    if (rhythm === "Inhala" && duration >= 3 && duration <= 5) {
       score += 10;
+      failCount = 0;
+    } else if (rhythm === "Exhala" && duration >= 5 && duration <= 7) {
+      score += 10;
+      failCount = 0;
     } else {
-      score -= 5;
+      failCount++;
     }
+
+    if (failCount >= 3) {
+      gameOverDiv.style.display = "flex";
+      paused = true;
+    }
+
     exhalesCount++;
     document.getElementById("exhales").innerText = exhalesCount;
   }
@@ -153,30 +228,47 @@ function createObstacle() {
 function drawObstacles() {
   ctx.fillStyle = "#2E8B57";
   obstacles.forEach((obs) => {
-    ctx.fillRect(obs.x, 0, obs.width, obs.y); // parte superior
-    ctx.fillRect(obs.x, obs.y + obs.gap, obs.width, canvas.height); // parte inferior
+    ctx.fillRect(obs.x, 0, obs.width, obs.y);
+    ctx.fillRect(obs.x, obs.y + obs.gap, obs.width, canvas.height);
   });
 }
 
 function updateObstacles() {
   obstacles.forEach((obs) => {
-    obs.x -= 2; // velocidad
+    obs.x -= 2;
   });
   obstacles = obstacles.filter((obs) => obs.x + obs.width > 0);
   if (frameCount % 150 === 0) createObstacle();
 }
 
-// Actualizar tiempo y precisión
+// Colisión
+function checkCollision() {
+  for (let obs of obstacles) {
+    if (
+      bird.x + bird.size > obs.x &&
+      bird.x - bird.size < obs.x + obs.width &&
+      (bird.y - bird.size < obs.y || bird.y + bird.size > obs.y + obs.gap)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Actualizar tiempo
 function updateMetrics() {
   let elapsed = Math.floor((Date.now() - startTime) / 1000);
   let mins = Math.floor(elapsed / 60);
   let secs = elapsed % 60;
   document.getElementById("time").innerText = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  document.getElementById("accuracy").innerText = accuracy + "%";
+  document.getElementById("rhythm").innerText = rhythm;
+  document.getElementById("score").innerText = score;
 }
 
 // Juego
 function update() {
+  if (paused) return;
+
   if (inhaling) bird.velocity += bird.lift;
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
@@ -192,6 +284,11 @@ function update() {
 
   updateObstacles();
   updateMetrics();
+
+  if (checkCollision()) {
+    gameOverDiv.style.display = "flex";
+    paused = true;
+  }
 }
 
 function draw() {
